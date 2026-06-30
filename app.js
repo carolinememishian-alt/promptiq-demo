@@ -288,6 +288,49 @@
       </div>`;
   }
 
+  // ---- generic vagueness scanner (works on ANY prompt) ---------------------
+  function genericVagueSuggestions(input) {
+    const out = [];
+    const seen = new Set();
+    function add(re, tip, rewrite) {
+      const m = input.match(re);
+      if (m && m.index != null && m[0].trim()) {
+        const term = m[0].trim();
+        const key = term.toLowerCase();
+        if (!seen.has(key)) { seen.add(key); out.push({ term, tip, rewrite, generic: true }); }
+      }
+    }
+    add(/^\s*(?:please\s+)?(?:can|could|would|will)\s+you(?:\s+please)?\b/i,
+      "Skip the permission phrasing and lead with a concrete action verb so the model knows the exact task.", "");
+    add(/\bhelp me\b/i,
+      "State the task directly instead of \u201chelp me\u201d \u2014 name the action and the deliverable you want.", "");
+    add(/\b(?:improve|enhance|optimi[sz]e|fix|refactor|update|handle|deal with|work on|look at|check)\b/i,
+      "Name what to change and the success criteria \u2014 e.g. \u201creduce X\u201d, \u201cremove Y\u201d, \u201csupport Z\u201d.", "[specific change to]");
+    add(/\b(?:better|good|nice|clean|proper|robust|optimal|efficient)\b/i,
+      "Replace the vague quality with a measurable target (latency, coverage, accuracy, etc.).", "[measurable target]");
+    add(/\b(?:these|those|this|that|things?|stuff|something|anything)\b/i,
+      "Name the specific artifact (file, dataset, function, audience) instead of a vague pronoun.", "[specific item]");
+    add(/\b(?:issues?|problems?|errors?|bugs?)\b/i,
+      "Specify the category \u2014 e.g. logic errors, edge cases, security, or performance.", "[specific issue category]");
+    return out.slice(0, 4);
+  }
+  function termRange(input, term) {
+    const m = input.match(new RegExp(`\\b${escapeRegExp(term)}\\b`, "i")) || input.match(new RegExp(escapeRegExp(term), "i"));
+    return m && m.index != null ? [m.index, m.index + m[0].length] : null;
+  }
+  function mergeSuggestions(base, extra, input) {
+    const ranges = base.map((s) => termRange(input, s.term)).filter(Boolean);
+    const merged = base.slice();
+    for (const item of extra) {
+      const r = termRange(input, item.term);
+      if (!r) continue;
+      const overlaps = ranges.some(([a, b]) => r[0] < b && a < r[1]);
+      if (overlaps) continue;
+      ranges.push(r); merged.push(item);
+    }
+    return merged.slice(0, 5);
+  }
+
   // ---- top-level analysis (ported) -----------------------------------------
   function analyzePrompt(text) {
     const input = (text || "").trim();
@@ -299,17 +342,19 @@
     const looksLikeCodeReview = /\bbugs?\b/i.test(input) || /\bcode\b/i.test(input);
     const looksLikeDataAnalysis = /\bdata\b/i.test(input) || /\banaly[sz]e\b/i.test(input) || /\bCSV\b/i.test(input) || /\bmetrics?\b/i.test(input);
     const looksLikeMarketing = /\bcampaign\b/i.test(input) || /\bfeedback\b/i.test(input) || /\bsentiment\b/i.test(input) || /\bmarketing\b/i.test(input);
+    const generic = genericVagueSuggestions(input);
 
     if (activeUseCase === "data" || (!looksLikeCodeReview && looksLikeDataAnalysis)) {
       const coach = dataCoachAnalyze(input);
       const missingSummary = coach.missing.length
         ? ` — missing ${coach.missing.slice(0, 3).map((m) => m.label.replace(/^the\s+/i, "")).join(", ")}`
         : " — strong prompt";
+      const coachSuggestions = mergeSuggestions(coach.suggestions, generic, input);
       return {
         score: coach.score,
         issue: `${coach.classification} · ${coach.label}${missingSummary}`,
-        highlight: coach.suggestions.map((s) => s.term).join(", "),
-        suggestions: coach.suggestions, rewrite: coach.improvedPrompt, coach,
+        highlight: coachSuggestions.map((s) => s.term).join(", "),
+        suggestions: coachSuggestions, rewrite: coach.improvedPrompt, coach,
       };
     } else if (activeUseCase === "marketing" || looksLikeMarketing) {
       const lead = input.match(/^(?:can|could)\s+you\s+(?:help me\s+)?(?:analy[sz]e|review|look at|check|assess)\b/i);
@@ -347,6 +392,12 @@
       if (!/(expected|should|want|goal)/i.test(input)) { score -= 12; issue = issue || "State expected behavior."; }
       if (!/(file|function|component|line|snippet|code)/i.test(input)) { score -= 10; issue = issue || "Reference where in code the issue occurs."; }
       score = Math.max(18, Math.min(98, score));
+    }
+    suggestions = mergeSuggestions(suggestions, generic, input);
+    highlight = suggestions.map((item) => item.term).join(", ");
+    if (rewrite === input && suggestions.length) {
+      rewrite = suggestions.reduce((acc, s) => applySuggestion(acc, s), input);
+      issue = issue || "Tighten the underlined phrases — name specifics instead of vague words.";
     }
     return { score, issue, highlight, suggestions, rewrite };
   }
