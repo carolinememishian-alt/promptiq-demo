@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PromptIQ — Prompt Coaching Demo</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%E2%9C%A8</text></svg>" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside class="side">
+        <div class="side-brand">
+          <span class="side-mark">✨</span>
+          <span class="side-name">PromptIQ</span>
+        </div>
+        <div class="side-section-h">Prompt skills</div>
+        <nav id="nav" class="side-nav"></nav>
+        <div class="side-foot">
+          <div class="side-foot-card">
+            <div class="side-foot-title">Open-source demo</div>
+            <div class="side-foot-sub">Live prompt coaching, scored before the model answers. All data is synthetic.</div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="main-head">
+          <div id="scenario-title" class="main-title"></div>
+          <div class="main-sub">PromptIQ coaches your prompt before the answer is generated.</div>
+        </header>
+
+        <section id="chat" class="chat"></section>
+
+        <form id="composer" class="composer" autocomplete="off">
+          <div id="prompt-coach-overlay-root"></div>
+          <div class="composer-input-wrap">
+            <input
+              id="prompt-input"
+              class="composer-input"
+              type="text"
+              placeholder="Ask anything"
+            />
+            <button type="submit" class="composer-send" title="Send">Send</button>
+          </div>
+        </form>
+      </main>
+    </div>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>
