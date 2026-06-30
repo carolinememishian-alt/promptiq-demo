@@ -72,31 +72,19 @@
   }
 
   function applySuggestion(input, suggestion) {
-    if (!suggestion) return input;
-    if (suggestion.rewrite && suggestion.term && suggestion.rewrite !== suggestion.term) {
-      const re = new RegExp(escapeRegExp(suggestion.term), "i");
-      if (re.test(input)) return input.replace(re, suggestion.rewrite);
-    }
-    if (suggestion.term === "Can") {
-      if (activeUseCase === "marketing") return input.replace(/^Can you (?:help me )?/i, "Classify ");
-      return input.replace(/^Can you (?:help me )?find\b/i, "Analyze");
-    }
-    if (suggestion.term === "bugs") {
-      return input.replace(/\bbugs\b/i, "logic errors, edge cases, security issues, and async/state bugs");
-    }
-    if (suggestion.term === "code") {
-      if (/\bmy code\b/i.test(input)) return input.replace(/\bmy code\b/i, "the attached TypeScript React checkout component");
-      return input.replace(/\bcode\b/i, "the attached TypeScript React checkout component");
-    }
-    if (suggestion.term === "fix my code") return input.replace(/fix my code/i, "debug this TypeScript React component");
-    if (suggestion.term === "analyze") return input.replace(/\banalyze\b/i, "analyze weekly retention trends");
-    if (suggestion.term === "this data") return input.replace(/\bthis data\b/i, "the attached CSV for the last 8 weeks");
-    if (suggestion.term === "review") return input.replace(/\breview\b/i, "classify sentiment in");
-    if (suggestion.term === "campaign feedback" || suggestion.term === "feedback") {
-      return input.replace(/\bcampaign feedback\b/i, "campaign feedback by audience segment and channel")
-        .replace(/\bfeedback\b/i, "feedback by audience segment and channel");
-    }
-    return input;
+    if (!suggestion || !suggestion.term) return input;
+    const rewrite = suggestion.rewrite != null ? suggestion.rewrite : suggestion.term;
+    const re = new RegExp(escapeRegExp(suggestion.term), "i");
+    if (!re.test(input)) return input;
+    let out = input.replace(re, rewrite);
+    // Tidy spacing/punctuation that an edit can introduce.
+    out = out
+      .replace(/\s{2,}/g, " ")
+      .replace(/\s+([.,?!;:])/g, "$1")
+      .replace(/\bthe the\b/gi, "the")
+      .replace(/\bthis the\b/gi, "the")
+      .trim();
+    return out;
   }
 
   function renderInlineUnderlines(input, suggestions, selectedTerm) {
@@ -291,12 +279,12 @@
         <div class="pc-coach-row">
           <span class="pc-coach-tag">PromptIQ Data Coach</span>
           <span class="pc-coach-class">${escapeHtml(coach.classification)}</span>
-          <span class="pc-coach-badge pc-coach-${tone}">${coach.score}/100 · ${escapeHtml(coach.label)}</span>
+          <span class="pc-coach-badge pc-coach-${tone}">${escapeHtml(coach.label)}</span>
         </div>
         <div class="pc-coach-section"><div class="pc-coach-h">What's missing &amp; why it matters</div>${missingHtml}</div>
         <div class="pc-coach-section"><div class="pc-coach-h">Suggested improved prompt</div><div class="pc-coach-improved">${escapeHtml(coach.improvedPrompt)}</div></div>
         ${clarifyingHtml}
-        <div class="pc-coach-hint">Click an underlined word above for a targeted fix, or press <strong>Rewrite</strong> to use the improved prompt.</div>
+        <div class="pc-coach-hint">Click an underlined word above for a targeted fix, or press <strong>Use improved prompt</strong> to apply the full rewrite.</div>
       </div>`;
   }
 
@@ -324,21 +312,32 @@
         suggestions: coach.suggestions, rewrite: coach.improvedPrompt, coach,
       };
     } else if (activeUseCase === "marketing" || looksLikeMarketing) {
-      if (/^Can\b/i.test(input)) suggestions.push({ term: "Can", tip: "Change 'Can' to an action verb like 'Classify' so the model knows the marketing analysis task.", rewrite: "Classify" });
-      if (/\breview\b/i.test(input)) suggestions.push({ term: "review", tip: "Change 'review' to a precise marketing action, such as classify sentiment or extract themes.", rewrite: "classify sentiment in" });
-      if (/\bcampaign feedback\b/i.test(input) || /\bfeedback\b/i.test(input)) {
-        suggestions.push({ term: input.match(/\bcampaign feedback\b/i) ? "campaign feedback" : "feedback", tip: "Add audience, channel, sentiment categories, and the marketing decision you need.", rewrite: "campaign feedback by audience segment and channel" });
+      const lead = input.match(/^(?:can|could)\s+you\s+(?:help me\s+)?(?:analy[sz]e|review|look at|check|assess)\b/i);
+      if (lead) {
+        suggestions.push({ term: lead[0], tip: "Lead with a concrete action like 'Classify sentiment in' instead of asking permission.", rewrite: "Classify sentiment in" });
+      } else if (/^(?:can|could)\s+you\b/i.test(input)) {
+        suggestions.push({ term: input.match(/^(?:can|could)\s+you/i)[0], tip: "Lead with the action verb instead of asking permission.", rewrite: "Classify sentiment in" });
       }
-      score = suggestions.length === 3 ? 32 : suggestions.length === 2 ? 58 : suggestions.length === 1 ? 76 : 92;
-      issue = suggestions.length > 0 ? "Marketing analysis prompt needs audience, channel, sentiment categories, and action criteria." : "Strong marketing sentiment prompt.";
-      rewrite = "Classify sentiment in the attached campaign feedback by audience segment and channel. Identify top positive themes, objections, purchase-intent signals, and recommended messaging changes.";
+      const fb = input.match(/\b(?:this |the |these )?campaign feedback\b|\b(?:this |the |these )?(?:customer )?comments\b|\b(?:this |the |these )?feedback\b/i);
+      if (fb) suggestions.push({ term: fb[0], tip: "Say what to break the feedback down by — audience segment, channel, and sentiment category.", rewrite: "the campaign feedback by audience segment, channel, and sentiment category" });
+      score = suggestions.length >= 2 ? 40 : suggestions.length === 1 ? 70 : 92;
+      issue = suggestions.length > 0 ? "Add audience, channel, sentiment categories, and the marketing decision you need." : "Strong marketing sentiment prompt.";
+      highlight = suggestions.map((item) => item.term).join(", ");
+      rewrite = "Classify sentiment in the campaign feedback by audience segment, channel, and sentiment category. Identify top positive themes, objections, purchase-intent signals, and recommended messaging changes.";
     } else if (looksLikeCodeReview) {
-      if (/^Can\b/i.test(input)) suggestions.push({ term: "Can", tip: "Change 'Can' to 'Analyze' because the current wording asks permission instead of giving the model a precise review action.", rewrite: "Analyze" });
-      if (/\bbugs\b/i.test(input)) suggestions.push({ term: "bugs", tip: "Change 'bugs' to a specific review focus, such as logic errors, edge cases, security issues, or async/state bugs, because 'bugs' is too broad.", rewrite: "logic errors, edge cases, security issues, and async/state bugs" });
-      if (/\bmy code\b/i.test(input) || /\bcode\b/i.test(input)) suggestions.push({ term: "code", tip: "Change 'code' to 'the attached TypeScript React checkout component' because the model needs a concrete code target.", rewrite: "the attached TypeScript React checkout component" });
-      score = suggestions.length === 3 ? 31 : suggestions.length === 2 ? 52 : suggestions.length === 1 ? 74 : 92;
+      const lead = input.match(/^(?:can|could)\s+you\s+(?:please\s+)?(?:find|review|check|analy[sz]e|look at|debug|fix)\b/i);
+      if (lead) {
+        suggestions.push({ term: lead[0], tip: "Lead with a precise review action instead of asking permission, so the model knows exactly what to do.", rewrite: "Review" });
+      } else if (/^(?:can|could)\s+you\b/i.test(input)) {
+        suggestions.push({ term: input.match(/^(?:can|could)\s+you/i)[0], tip: "Lead with the action verb instead of asking permission.", rewrite: "Review" });
+      }
+      const bug = input.match(/\bbugs?\b/i);
+      if (bug) suggestions.push({ term: bug[0], tip: "Name a specific review focus instead of the broad word 'bugs' — e.g. logic errors, edge cases, security issues, and async/state bugs.", rewrite: "logic errors, edge cases, security issues, and async/state bugs" });
+      const codeTarget = input.match(/\bmy code\b|\bthe code\b|\bcode\b/i);
+      if (codeTarget) suggestions.push({ term: codeTarget[0], tip: "Point at a concrete code target so the model knows what to inspect — e.g. the attached TypeScript React checkout component.", rewrite: "the attached TypeScript React checkout component" });
+      score = suggestions.length >= 3 ? 31 : suggestions.length === 2 ? 52 : suggestions.length === 1 ? 74 : 92;
       issue = suggestions.length > 0
-        ? "Keep improving this prompt one part at a time. PromptIQ will only keep underlining the pieces that still need work."
+        ? "Tighten one underlined phrase at a time — PromptIQ keeps flagging what still needs work."
         : "Strong code review prompt. You have a clear action, bug class, and target code.";
       highlight = suggestions.map((item) => item.term).join(", ");
       rewrite = "Review the attached TypeScript React checkout component for logic errors, edge cases, security issues, and async/state bugs. Flag each issue by severity, explain why it is a bug, and provide the exact code change needed.";
@@ -403,11 +402,11 @@
         <span class="pc-label">PromptIQ</span>
       </div>
       <div class="pc-actions">
-        <span class="pc-score">0.00/5</span>
-        <button type="button" class="pc-ghost-btn pc-example-btn">Use example</button>
-        <button type="button" class="pc-rewrite-btn">Rewrite</button>
+        <span class="pc-score">—</span>
+        <button type="button" class="pc-ghost-btn pc-example-btn" title="Insert a sample prompt to coach">Try an example</button>
+        <button type="button" class="pc-rewrite-btn" title="Replace your prompt with the improved version">Apply improvement</button>
       </div>
-      <div class="pc-tip">Begin typing to get prompt insights.</div>
+      <div class="pc-tip">Begin typing, or try an example prompt.</div>
       <div class="pc-highlight" hidden></div>`;
     form.insertBefore(row, form.firstChild);
 
@@ -441,19 +440,23 @@
       const hasText = input.value.trim().length > 0;
       if (!enabled) {
         row.classList.add("pc-disabled");
-        scoreEl.textContent = "0.00/5"; tipEl.style.display = "none";
+        scoreEl.textContent = "—"; scoreEl.className = "pc-score"; tipEl.style.display = "none";
         highlightEl.hidden = true; highlightEl.innerHTML = "";
+        rewriteBtn.textContent = "Apply improvement";
         inlineOverlay.hidden = true; inlineOverlay.innerHTML = ""; rewriteBtn.disabled = true; return;
       }
       if (!hasText) {
         selectedTerm = ""; row.classList.remove("pc-disabled");
-        scoreEl.textContent = "0.00/5"; tipEl.style.display = "block";
-        tipEl.textContent = "Begin typing to get prompt insights.";
+        scoreEl.textContent = "—"; scoreEl.className = "pc-score"; tipEl.style.display = "block";
+        tipEl.textContent = "Begin typing, or try an example prompt.";
         highlightEl.hidden = true; highlightEl.innerHTML = "";
+        rewriteBtn.textContent = "Apply improvement";
         inlineOverlay.hidden = true; inlineOverlay.innerHTML = ""; rewriteBtn.disabled = true; return;
       }
       row.classList.remove("pc-disabled");
-      scoreEl.textContent = `${(current.score / 20).toFixed(2)}/5`;
+      const sc = Math.round(current.score);
+      scoreEl.textContent = `${sc}/100`;
+      scoreEl.className = "pc-score " + (sc >= 70 ? "pc-score-good" : sc >= 45 ? "pc-score-mid" : "pc-score-low");
       tipEl.style.display = "block";
       tipEl.textContent = current.issue || "Strong prompt. You can still add constraints or success criteria.";
       inlineOverlay.hidden = !(current.suggestions && current.suggestions.length);
@@ -472,15 +475,21 @@
             </div>
             <div class="pc-rewrite-preview">Recommended change: <strong>${escapeHtml(selectedSuggestion.term)}</strong> → <strong>${escapeHtml(selectedSuggestion.rewrite || selectedSuggestion.term)}</strong></div>
           </div>`;
+        rewriteBtn.textContent = "Apply this fix";
         rewriteBtn.disabled = false;
       } else if (current.coach) {
         highlightEl.hidden = false;
         highlightEl.innerHTML = renderCoachCard(current.coach);
+        rewriteBtn.textContent = "Use improved prompt";
         rewriteBtn.disabled = false;
       } else if (current.suggestions && current.suggestions.length) {
-        highlightEl.hidden = true; rewriteBtn.disabled = true;
+        highlightEl.hidden = false;
+        highlightEl.innerHTML = `<div class="pc-coach-section"><div class="pc-coach-h">Suggested improved prompt</div><div class="pc-coach-improved">${escapeHtml(current.rewrite || "")}</div></div><div class="pc-coach-hint">Click an underlined word for a one-phrase fix, or press <strong>Use improved prompt</strong> for the full rewrite.</div>`;
+        rewriteBtn.textContent = "Use improved prompt";
+        rewriteBtn.disabled = !(current.rewrite && current.rewrite.trim());
       } else {
-        highlightEl.hidden = true; inlineOverlay.hidden = true; rewriteBtn.disabled = true;
+        highlightEl.hidden = true; inlineOverlay.hidden = true;
+        rewriteBtn.textContent = "Apply improvement"; rewriteBtn.disabled = true;
       }
     }
     function refresh() {

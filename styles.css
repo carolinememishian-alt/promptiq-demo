@@ -200,8 +200,11 @@ body {
 .pc-actions { position: absolute; top: 8px; right: 10px; display: inline-flex; align-items: center; gap: 6px; }
 .pc-score {
   font-size: 11px; font-weight: 700; color: #4d3a66; background: #ffffff;
-  border: 1px solid #ead6f7; border-radius: 999px; padding: 3px 8px;
+  border: 1px solid #ead6f7; border-radius: 999px; padding: 3px 8px; min-width: 30px; text-align: center;
 }
+.pc-score-good { color: #137333; background: #e7f7ec; border-color: #bfe6cb; }
+.pc-score-mid { color: #9a6700; background: #fef7e0; border-color: #f0dca5; }
+.pc-score-low { color: #c5221f; background: #fce8e6; border-color: #f3c1bd; }
 .pc-toggle {
   width: 34px; height: 20px; border-radius: 999px; border: 1px solid #d7b0cb;
   background: #ce4ea2; padding: 1px; display: inline-flex; align-items: center;
