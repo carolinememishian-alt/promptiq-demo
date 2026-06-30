@@ -11,7 +11,7 @@
     code: {
       label: "Code Review",
       file: "PromptIQ - Code Review.md",
-      example: "Can you find bugs in my code?",
+      example: "can you look at my checkout code and fix anything that's broken?",
       messages: [
         { kind: "user", text: "Clone this repo." },
         { kind: "assistant", html: "Okay. I will clone the repo and review the code." },
@@ -24,7 +24,7 @@
     data: {
       label: "Data Analysis",
       file: "PromptIQ - Data Analysis.md",
-      example: "Can you analyze this data?",
+      example: "can you analyze this data and tell me what's going on with our numbers?",
       messages: [
         { kind: "user", text: "Revenue dipped last week for Product X. Can you help me figure out why?" },
         {
@@ -45,7 +45,7 @@
     marketing: {
       label: "Marketing Sentiment",
       file: "PromptIQ - Marketing Sentiment.md",
-      example: "Can you review this campaign feedback?",
+      example: "can you go through this campaign feedback and tell me if it's good or bad?",
       messages: [
         { kind: "user", text: "I'm seeing mixed feedback on our new campaign. Can you help me analyze sentiment from these customer comments?" },
         {
@@ -454,10 +454,10 @@
       </div>
       <div class="pc-actions">
         <span class="pc-score">—</span>
-        <button type="button" class="pc-ghost-btn pc-example-btn" title="Insert a sample prompt to coach">Try an example</button>
+        <button type="button" class="pc-ghost-btn pc-example-btn" title="Load a realistic but vague prompt and watch PromptIQ coach it">Coach a weak prompt</button>
         <button type="button" class="pc-rewrite-btn" title="Replace your prompt with the improved version">Apply improvement</button>
       </div>
-      <div class="pc-tip">Begin typing, or try an example prompt.</div>
+      <div class="pc-tip">Begin typing, or coach a weak prompt to see it in action.</div>
       <div class="pc-highlight" hidden></div>`;
     form.insertBefore(row, form.firstChild);
 
@@ -499,7 +499,7 @@
       if (!hasText) {
         selectedTerm = ""; row.classList.remove("pc-disabled");
         scoreEl.textContent = "—"; scoreEl.className = "pc-score"; tipEl.style.display = "block";
-        tipEl.textContent = "Begin typing, or try an example prompt.";
+        tipEl.textContent = "Begin typing, or coach a weak prompt to see it in action.";
         highlightEl.hidden = true; highlightEl.innerHTML = "";
         rewriteBtn.textContent = "Apply improvement";
         inlineOverlay.hidden = true; inlineOverlay.innerHTML = ""; rewriteBtn.disabled = true; return;
